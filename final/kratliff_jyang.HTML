@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+  .axis text {
+    font-family: sans-serif;
+    font-size: 11px;
+  }
+
+  .axis path,
+  .axis line {
+    fill: none;
+    stroke: gray;
+    shape-rendering: crisp-edges;
+  }
+
+  #map {
+    fill: grey;
+  }
+
+  .selected {
+    /*fill-opacity : 55;*/
+    stroke: #cc8400 !important;
+    stroke-width: 1;
+    /*stroke-opacity : .5;*/
+  }
+
+  .highlight {
+    /*fill-opacity : 55;*/
+    fill: orange !important;
+    /*stroke-opacity : .5;*/
+  }
+
+  .brushrect .extent {
+    stroke: #fff;
+    fill-opacity: .125;
+    shape-rendering: crispEdges;
+  }
+
+  .dropbtn {
+    background-color: steelblue;
+    color: white;
+    padding: 16px;
+    font-size: 16px;
+    border: none;
+    cursor: pointer;
+  }
+
+  .dropbtn:hover,
+  .dropbtn:focus {
+    background-color: darkblue;
+  }
+
+  .dropdown {
+    position: absolute;
+    float: left;
+    display: inline-block;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+  }
+
+  .dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+  }
+
+  div.tooltip {
+    color: #222;
+    background: #fff;
+    padding: .5em;
+    text-shadow: #f5f5f5 0 1px 0;
+    border-radius: 2px;
+    box-shadow: 0px 0px 2px 0px #a6a6a6;
+    opacity: 0.9;
+    position: absolute;
+  }
+
+  #tooltip {
+    position: relative;
+    float: right;
+    width: 200px;
+    height: auto;
+    top: 390;
+    background-color: none;
+    pointer-events: none;
+  }
+
+  #tooltip.hidden {
+    display: none;
+  }
+
+  .map{
+    position: absolute;
+    margin-top:120px;
+
+  }
+
+  .chart{
+    position:absolute;
+    display:none;
+    top:480px !important;
+    clear:both;
+  }
+
+  .dropdown-content a:hover {
+    background-color: #f1f1f1
+  }
+
+  .show {
+    display: block;
+  }
+</style>
+
+<body>
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="http://d3js.org/topojson.v1.min.js"></script>
+  <script src="http://d3js.org/queue.v1.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+
+  <div class="dropdown">
+    <select><optgroup label="Metrics" id="metrics" class = "metrics"></optgroup></select>
+
+    <!-- <button onclick="myFunction()" class="dropbtn">Choose Data</button>
+    <select id="myDropdown" class="dropdown-content">
+      <a href="#">Arable Land</a>
+      <a href="#">CH4 Emissions</a>
+      <a href="#">CO Emissions</a>
+      <a href="#">CO2 Emissions</a>
+      <a href="#">Number of People Affected by Natural Disasters</a>
+      <a href="#">HFC Emissions</a>
+      <a href="#">Forest Size Change</a>
+      <a href="#">GHG Emissions</a>
+    </select> -->
+  </div>
+
+  <div id="tooltip" class="hidden">
+    <p>
+      <span id="countryName" style="font-size: 12px"></span>
+    </p>
+    <p>Year
+      <span id="year" style="font-size: 10px"></span>
+    </p>
+    <p>Variable:
+      <span id="variable" style="font-size: 10px"></span>
+    </p>
+    <p>Value:
+      <span id="value" style="font-size: 10px"></span>
+    </p>
+  </div>
+  <div></div>
+  <script>
+    var width = 960,
+      height = 480;
+
+    var projection = d3.geo.equirectangular()
+      .scale(153)
+      .translate([width / 2, height / 2])
+      .precision(.1);
+
+    var path = d3.geo.path().projection(projection);
+
+    var mapSVG = d3.select("body").append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .attr("class", "map");
+
+
+    var margin = {
+        top: 30,
+        right: 20,
+        bottom: 30,
+        left: 50
+      },
+      w = width - margin.left - margin.right,
+      h = height - margin.top - margin.bottom;
+
+
+    var xScale = d3.scale.linear().range([0, width]).domain([0, 90000]);
+    var yScale = d3.scale.linear().range([height, 0]).domain([0, 9000]);
+
+
+    var xAxis = d3.svg.axis().scale(xScale)
+      .orient("bottom").ticks(5);
+
+    var yAxis = d3.svg.axis().scale(yScale)
+      .orient("left").ticks(5);
+
+    var divcolorScale = d3.scale.linear()
+      .range(['#d8b365', '#f5f5f5', '#5ab4ac']);
+
+    var colorScale = d3.scale.linear()
+      .range(['#fee8c8', '#fdbb84', '#e34a33'])
+
+    var chart = d3.select("body")
+      .append("svg")
+      .attr("class", "chart")
+      .attr("width", w + margin.left + margin.right)
+      .attr("height", h + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform",
+        "translate(" + margin.left + "," + margin.top + ")");
+
+    function myFunction() {
+      document.getElementById("myDropdown").classList.toggle("show");
+    }
+
+    var metrics = ["arable","ghg","forestChange","hfc","disaster","co2","co", "ch4"];
+
+    var menu = d3.select("#metrics");
+		for (prop in metrics){
+
+				menu.append("option").attr("value",metrics[prop]).text(metrics[prop]);
+
+		}
+
+
+    var selectedCountries = d3.selectAll(".selected")
+
+    // chart.selectAll('rect')
+    //       .data(selectedCountries)
+    //       .enter()
+    //       .append('rect')
+    //       .attr({x: function(d){return xScale(d.country);},
+    //               y: function(d){return yScale(+d.value);},
+    //             width: xScale.rangeBand(),
+    //             height: function(d){return chartHeight  - yScale(+d.duration)}});
+
+    chart.append("g")
+      .attr({
+        "class": "axis",
+        "transform": "translate(0," + h + ")"
+      })
+      .call(xAxis)
+      .attr({
+
+        "x": w / 2,
+        "y": margin.bottom - 10
+      });
+
+    chart.append("g")
+      .attr({
+        "class": "axis"
+      })
+      .call(yAxis)
+      .append("text")
+      .attr({
+
+        "x": -h / 2,
+        "y": 0,
+        "transform": "rotate(-90)"
+      });
+
+
+    // Jackson local data
+    // queue()
+    //   .defer(d3.json, "http://localhost:8000/Documents/Middlebury/Junior/Spring/InfoVis/Final%20Project/World3.json")
+    //   .defer(d3.csv, "http://localhost:8000/Documents/Middlebury/Junior/Spring/InfoVis/Final%20Project/allData.csv")
+    //   .await(ready);
+
+    //Kent local data
+    queue()
+      .defer(d3.json, "http://localhost:8000/world3.json")
+      .defer(d3.csv, "http://localhost:8000/ecoData.csv")
+      .await(ready);
+
+    function ready(error, world, data) {
+      if (error) throw error;
+
+      var nestData = d3.nest()
+        .key(function(d) {
+          return d.country;
+        })
+        .key(function(d) {
+          return d.id;
+        })
+        .key(function(d) {
+          return d.data
+        })
+        .entries(data);
+
+        var timeOpt = {
+          arable: [1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969,
+            1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982,
+            1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995,
+            1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+            2009, 2010, 2011, 2012
+          ],
+          ch4: [1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982,
+            1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996,
+            1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
+          ],
+          co: [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
+            2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
+          ],
+          co2: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010],
+          disaster: [1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986,
+            1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
+          ],
+          hfc: [1990, 2000, 2005,
+            2008, 2010
+          ],
+          forestChange: [1990, 2000, 2005],
+          ghg: [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001,
+            2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
+          ]
+
+        };
+
+        var variable = "arable"
+        d3.select("select").on("change",function(){
+          d3.selectAll("#map").style("fill", "grey");
+          variable = this.value;
+          console.log(timeOpt[variable][0].toString());
+          //could not get user choice of year working, for now earliest year is displayed
+          var year=timeOpt[variable][0].toString();//this.year;
+          setMetric(variable, year, nestData);
+        })
+
+
+
+
+      var countries = topojson.feature(world, world.objects.world_minus_ant).features;
+
+      //this function should set the x values and x axis label
+      		function setMetric(variable, year, nestData){
+              var aggregateData = [];
+
+              nestData.map(function(d) {
+                //d.key:county;d.values:nested on id
+                d.values.map(function(d) {
+                  //d.key:id;d.values:nested on data
+                  d.values.filter(function(d) {
+                    //filter to one variable
+                    return d.key === variable;
+                  }).map(function(d) {
+                    //d.key:?;d.values:objects
+                    d.values.filter(function(d) {
+                      return d.year === year;
+                    }).map(function(d) {
+                      //console.log(+d.value);
+                      aggregateData.push(+d.value);
+                    });
+                  });
+                });
+              });
+              colorScale.domain(d3.extent(aggregateData));
+              var countries = topojson.feature(world, world.objects.world_minus_ant).features;
+
+              var map = mapSVG.selectAll("path")
+                .data(countries);
+
+              map.exit().remove();
+              // console.log(data);
+              map.enter()
+                .append("path")
+                .attr("d", function(d) {
+                  return path(d)
+                })
+                .attr("id", "map")
+
+
+              map.filter(function(d) {
+                  //console.log(d);
+                  return nestData.map(function(d) {
+                    d.values.find(function(i) {
+                      //console.log(i);
+                      return d.id === i.key;
+                    });
+                  });
+                })
+                .style("fill", function(d) {
+                  //get object with matching id, variable name, and year
+                  var filtered = findData(nestData, variable, year, d.id);
+
+                  return colorScale(+filtered.value);
+                })
+                .on("mouseleave", function(d) {
+                  d3.select(this).classed("highlight", false);
+                  var tooltip = d3.select("#tooltip")
+                    .classed("hidden", true);
+                })
+                .on("mouseover", function(d){
+                    d3.select(this).classed("highlight", true);
+        						var item = d3.select(this);
+                    var id = d3.select(this)[0][0].__data__.id;
+                    var use = findData(nestData, variable, year, id);
+                    //
+        						// var svg = d3.select("svg");
+        						// var coordinates = d3.mouse(svg);
+        						// coordinates[0] += svg.offsetLeft;
+        						// coordinates[1] += svg.offsetTop;
+
+        						var tooltip = d3.select("#tooltip")
+        						.classed("hidden", false);
+        						/*.style({"left": (coordinates[0] + 15)+"px",
+        						"top":(coordinates[1] - 100)})
+        						.classed("hidden",false);*/
+        console.log(use);
+        						tooltip.select("#countryName").text(use.country);
+        						tooltip.select("#year").text(use.year);
+                    tooltip.select("#variable").text(variable);
+        						tooltip.select("#value")
+                    .text(use.value)
+
+
+        					})
+                .on("click", function(d) {
+                  var country = d3.select(this);
+                  if (country.classed("selected")) {
+                    country.classed("selected", false);
+                  } else country.classed("selected", true);
+                });
+
+      		}
+
+
+      //variable to filter data
+
+      //variable to filter year
+
+
+      // var aggregateData = [];
+      //
+      // nestData.map(function(d) {
+      //   //d.key:county;d.values:nested on id
+      //   d.values.map(function(d) {
+      //     //d.key:id;d.values:nested on data
+      //     d.values.filter(function(d) {
+      //       //filter to one variable
+      //       return d.key === variable;
+      //     }).map(function(d) {
+      //       //d.key:?;d.values:objects
+      //       d.values.filter(function(d) {
+      //         return d.year === year;
+      //       }).map(function(d) {
+      //         //console.log(+d.value);
+      //         aggregateData.push(+d.value);
+      //       });
+      //     });
+      //   });
+      // });
+      // colorScale.domain(d3.extent(aggregateData));
+
+
+
+//       var countries = topojson.feature(world, world.objects.world_minus_ant).features;
+//
+//       var map = mapSVG.selectAll("path")
+//         .data(countries);
+//
+//       map.exit().remove();
+//       // console.log(data);
+//       map.enter()
+//         .append("path")
+//         .attr("d", function(d) {
+//           return path(d)
+//         })
+//         .attr("id", "map")
+//
+//
+//       map.filter(function(d) {
+//           //console.log(d);
+//           return nestData.map(function(d) {
+//             d.values.find(function(i) {
+//               //console.log(i);
+//               return d.id === i.key;
+//             });
+//           });
+//         })
+//         .style("fill", function(d) {
+//           //get object with matching id, variable name, and year
+//           var filtered = findData(nestData, variable, year, d.id);
+//
+//           return colorScale(+filtered.value);
+//         })
+//         .on("mouseleave", function(d) {
+//           d3.select(this).classed("highlight", false);
+//           var tooltip = d3.select("#tooltip")
+//             .classed("hidden", true);
+//         })
+//         .on("mouseover", function(d){
+//             d3.select(this).classed("highlight", true);
+// 						var item = d3.select(this);
+//             var id = d3.select(this)[0][0].__data__.id;
+//             var use = findData(nestData, variable, year, id);
+//             //
+// 						// var svg = d3.select("svg");
+// 						// var coordinates = d3.mouse(svg);
+// 						// coordinates[0] += svg.offsetLeft;
+// 						// coordinates[1] += svg.offsetTop;
+//
+// 						var tooltip = d3.select("#tooltip")
+// 						.classed("hidden", false);
+// 						/*.style({"left": (coordinates[0] + 15)+"px",
+// 						"top":(coordinates[1] - 100)})
+// 						.classed("hidden",false);*/
+// console.log(use);
+// 						tooltip.select("#countryName").text(use.country);
+// 						tooltip.select("#year").text(use.year);
+//             tooltip.select("#variable").text(variable);
+// 						tooltip.select("#value")
+//             .text(use.value)
+//
+//
+// 					})
+//         .on("click", function(d) {
+//           var country = d3.select(this);
+//           if (country.classed("selected")) {
+//             country.classed("selected", false);
+//           } else country.classed("selected", true);
+//         });
+    }
+
+
+    function findData(array, variable, year, id) {
+      var findId = array.find(function(i) {
+        return i.values[0].key === id;
+      });
+
+      //within matched id object get only records for the correct variable
+      if (findId !== undefined) {
+        var findVar = findId.values[0].values.find(function(n) {
+          return n.key === variable;
+        });
+
+        //within correct value get only records for correct year
+        var findYear = findVar.values.find(function(n) {
+          return n.year === year;
+        });
+        return findYear;
+      } else return {
+        value: undefined
+      };
+
+    }
+  </script>
