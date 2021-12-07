@@ -1,0 +1,368 @@
+<!DOCTYPE html
+Authors: Kent Ratliff & Ryan Rizzo
+CS465
+HW6>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>HW6: Baby Name Explorer</title>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <style type="text/css">
+    .axis text {
+      font-family: sans-serif;
+      font-size: 16px;
+    }
+
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: gray;
+      shape-rendering: crisp-edges;
+    }
+
+    path {
+      stroke: steelblue;
+      stroke-width: 2px;
+      fill: none;
+    }
+    /*.legend rect {
+      fill: white;
+      stroke: black;
+      opacity: 0.8;
+    }*/
+
+    .brush .extent {
+      stroke: #fff;
+      fill-opacity: .125;
+      shape-rendering: crispEdges;
+    }
+  </style>
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/1.9.0/d3-legend.js" charset="utf-8"></script> -->
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js"></script>
+  <script>
+  </script>
+</head>
+
+<body>
+
+
+  <h3>Baby Name Explorer</h3>
+
+
+  <!-- <button type="button" id='button' value="Add to list"> -->
+  <input type="text" id="myVal" placeholder="Add some text&hellip;">
+  <p>
+    <input type="radio" name="gender" value="M" />M</p>
+  <p>
+    <input type="radio" name="gender" value="F" />F</p>
+  <p>
+    <input type="radio" name="gender" value="" />Both</p>
+
+
+  <div>
+    <button type="button" id="button">Add</button>
+    <br>
+    <ul id="key" style="list-style-type: none; float:right;"></ul>
+    <ul id="colors" style="list-style-type: none; float:right;">
+    </ul>​
+  </div>
+  <script>
+    //size the chart
+    var width = 860,
+      height = 600;
+
+    //set the margins, can be manipulated from here to affect all code
+    var margins = {
+        top: 10,
+        bottom: 150,
+        left: 80,
+        right: 10
+      },
+      margin2 = {
+        top: 460,
+        bottom: 70,
+        left: 80,
+        right: 10
+      };
+
+    //set the chartWidth & chartHeight variables to use later
+    var chartWidth = width - margins.left - margins.right,
+      chartHeight = height - margins.top - margins.bottom,
+      chartHeight2 = height - margin2.top - margin2.bottom;
+
+    //both scales are linear
+    var xScale = d3.scale.linear().range([0, chartWidth]).nice(),
+      yScale = d3.scale.linear().range([chartHeight, 0]).nice(),
+      x2Scale = d3.scale.linear().range([0, chartWidth]).nice(),
+      y2Scale = d3.scale.linear().range([chartHeight2, 0]).nice();
+    //color = d3.scale.category10();
+
+    var xAxis = d3.svg.axis().scale(xScale).orient("bottom").tickFormat(d3.format("d")),
+      xAxis2 = d3.svg.axis().scale(x2Scale).orient("bottom").tickFormat(d3.format("d")),
+      yAxis = d3.svg.axis().scale(yScale).orient("left");
+
+
+    //TODO use different color
+    //we establish our colors to use for each of the 5 trees
+    var colors = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a'];
+
+
+
+    var svg = d3.select("body").append("svg")
+      .attr("width", width + margins.left + margins.right)
+      .attr("height", height + margins.top + margins.bottom);
+
+    svg.append("defs").append("clipPath")
+      .attr("id", "clip")
+      .append("rect")
+      .attr("width", width)
+      .attr("height", height);
+
+    var focus = svg.append("g")
+      .attr("class", "focus")
+      .attr("transform", "translate(" + margins.left + "," + margins.top + ")");
+
+    var context = svg.append("g")
+      .attr("class", "context")
+      .attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+    var legend = d3.select("#key")
+
+
+//import data
+    d3.csv("http://www.cs.middlebury.edu/~candrews/classes/infovis/data/names1880-2012.csv",
+      function(dataset) {
+
+        //nest our data by name and gender
+        var nestData = d3.nest()
+          .key(function(d) {
+            return d.Name;
+          })
+          .key(function(d) {
+            return d.Gender;
+          })
+          .map(dataset, d3.map);
+
+        console.log(nestData);
+
+        var brush = d3.svg.brush()
+          .x(x2Scale)
+          .on("brush", brushed)
+          .on("brushend", function(d){
+            var e = brush.extent();});
+
+          xScale.domain(d3.extent(dataset.map(function(d){return d.Year;})));
+          x2Scale.domain(xScale.domain());
+          //d3.extent(d3.map(nestData, function(d) {
+        //   return d3.map(d.value, function(i) {
+        //     return i.Year;
+        //   });
+        // })));
+
+
+        var nameSelect = [];
+
+        $("#button").click(function() {
+          popData(document.getElementById("myVal").value, $('input[name=gender]:checked').val());
+          return false;
+        });
+
+        function popData(name, gen) {
+          if (nameSelect.length < 10) {
+            if (gen === "") {
+              if (nameSelect.length <= 8) {
+                if (nameSelect.findIndex(function(entry) {
+                    return entry.key === name + "M"
+                  }) === -1) {
+                  nameSelect.push({
+                    value: nestData.get(name).get("M"),
+                    key: name + gen,
+                    color: colors.pop()
+                  });
+                } else {
+                  alert("that name has already been added");
+                }
+                if (nameSelect.findIndex(function(entry) {
+                    return entry.key === name + "F"
+                  }) === -1) {
+                  nameSelect.push({
+                    value: nestData.get(name).get("F"),
+                    key: name + gen,
+                    color: colors.pop()
+                  });
+                } else {
+                  alert("that name has already been added");
+                }
+              } else {
+                alert("only 10 names can bee added");
+              }
+            } else {
+              if (nameSelect.findIndex(function(entry) {
+                  return entry.key === name + gen
+                }) === -1) {
+                nameSelect.push({
+                  value: nestData.get(name).get(gen),
+                  key: name + gen,
+                  color: colors.pop()
+                });
+
+
+              } else {
+                alert("that name has already been added");
+              }
+            }
+          } else {
+            alert("only ten names can be added");
+          }
+          //legend.exit().remove();
+          var item = legend.selectAll("li").data(nameSelect)
+          item.exit().remove();
+          item.enter()
+            .append("li");
+          item.text(function(d) {
+              return d.key;
+            })
+            .style("color", function(d) {
+              return d.color;
+            });
+
+          draw();
+        }
+
+        var line = d3.svg.line()
+          .interpolate("linear")
+          .x(function(d) {
+            return xScale(+d.Year);
+          })
+          .y(function(d) {
+            return yScale(+d.Count);
+          });
+
+
+        // I create a group for the line + dots. This is where the data is bound
+        function draw() {
+          //establish the domains based on the user selected data
+          yScale.domain([0, d3.max(nameSelect, function(d) {
+            return d3.max(d.value, function(x) {
+              return +x.Count;
+            });
+          })]);
+
+          d3.select("#yAxis").call(yAxis)
+          //remove lines in order to repopulate
+          d3.selectAll(".line").remove();
+          //set up the lines to draw
+          var names = focus.selectAll(".name")
+            .data(nameSelect.filter(function(d){
+              return d.value.map(function(i){
+                return i.Year >= xScale.domain()[0] && i.Year <= xScale.domain()[1] ;}
+              );}), function(d) {
+              return d.key;
+            });
+          names.exit().remove();
+          names.enter()
+            .append("path")
+            .attr("class", "name")
+            .attr("id","focusName");
+
+          names.attr("class", "line")
+            .attr("d", function(d, i) {
+              return line(d.value);
+            })
+            .attr("clip-path","url(#clipper)")
+            .style("fill", "None")
+            .style("stroke", function(d) {
+              return d.color;
+            });
+
+          //if we wanted to draw lines in our context, this is where we'd do it
+          // var conName = context.selectAll(".name")
+          //   .data(nameSelect, function(d) {
+          //     return d.key;
+          //   });
+          // conName.exit().remove();
+          // conName.enter()
+          //   .append("path")
+          //   .attr("class", "name");
+          //
+          // conName.attr("class", "line")
+          //   .attr("d", function(d, i) {
+          //     return line(d.value);
+          //   })
+          //   .style("fill", "None")
+          //   .style("stroke", function(d) {
+          //     return d.color;
+          //   });
+        }
+
+
+        context.append("g")
+          .attr("class", "x brush")
+          .call(brush)
+          .selectAll("rect")
+          .attr("y", -6)
+          .attr("height", chartHeight2);
+
+        focus.append("g")
+          .attr("class", "axis")
+          .attr("id", "xAxis")
+          .attr("transform", "translate(0, " + chartHeight + ")")
+          .call(xAxis)
+          .append("text")
+          .attr({
+            "x": chartWidth / 2,
+            "y": margins.bottom / 2,
+            "text-anchor": "middle"
+          })
+
+        focus.append("g")
+          .attr("class", "axis")
+          .attr("id", "yAxis")
+          .call(yAxis)
+          .append("text")
+          .attr({
+            "x": -chartHeight / 2,
+            "y": 3 * -margins.left / 4,
+            "text-anchor": "middle",
+            "transform": "rotate(-90)"
+          })
+          .text("Popularity");
+
+        focus.append("clipPath")
+          .attr("id", "clipper")
+          .append("rect")
+            .attr("x", margins.left-80)
+            .attr("y", margins.top-10)
+            .attr("height", chartHeight)
+            .attr("width", chartWidth);
+
+
+
+
+        context.append("g")
+          .attr("class", "axis")
+          .attr("transform", "translate(0, " + chartHeight2 + ")")
+          .call(xAxis2)
+          .append("text")
+          .attr({
+            "x": chartWidth / 2,
+            "y": margin2.bottom / 2,
+            "text-anchor": "middle"
+          })
+          .text("Year");
+
+          function brushed() {
+            xScale.domain(brush.empty() ? x2Scale.domain() : brush.extent());
+            //focus.select("#focusName").attr("d", area);
+            focus.select("#xAxis").call(xAxis);
+            draw();
+          }
+
+      });
+
+
+  </script>
+</body>
+
+</html>

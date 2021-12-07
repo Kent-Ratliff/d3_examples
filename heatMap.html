@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Movie Heat Map</title>
+    <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <style type="text/css">
+      .axis text{
+          font-family:sans-serif;
+          font-size:11px;
+      }
+      .axis path,
+      .axis line{
+        fill:none;
+        stroke:gray;
+        shape-rendering: crisp-edges;
+      }
+</style>
+
+  </head>
+  <body>
+		<h3>Movie Heat Map</h3>
+
+    <script>
+
+      var colorScales = {};
+
+      var width = 800;
+      var height = 650;
+
+      var margins = {top:0, bottom: 90, left: 250, right:50};
+
+
+      var chartWidth = width - margins.left - margins.right;
+      var chartHeight = height - margins.top - margins.bottom;
+
+      var xScale = d3.scale.ordinal().rangeRoundBands([0, chartWidth], 0.1);
+      var yScale = d3.scale.ordinal().rangeRoundBands([chartHeight, 0], 0.1);
+      //var colorScale = d3.scale.linear().range(["gray", "red"]);
+
+
+      d3.json("http://www.cs.middlebury.edu/~candrews/classes/infovis/data/films50.json", function(dataset){
+        console.log(dataset);
+
+
+        // console.log("extent of year");
+
+        // for(prop in dataset[0]){
+        //   console.log(prop);
+        //   console.log(d3.extent(dataset, function(d){return +d[prop]}));
+        // } 
+
+
+
+        // console.log("colorScales");
+        // console.log(colorScales);
+
+
+
+          //to get yScale, gives us the list of movie names
+          var movieNames = []
+          dataset.forEach(function(d){
+            movieNames.push(d.film);
+          })
+
+          //to get xScale, gives us a list of attributes we'll use
+          var attributeList = [];
+          for (prop in dataset[0]){
+            if (prop != "studio" && prop != "film" && prop != "genre" && prop != "year"){
+              attributeList.push(prop);
+            }
+          }
+
+
+          xScale.domain(attributeList.map(function(d){return d;}));
+          yScale.domain(movieNames.map(function(d){return d;}));
+
+
+        // colorScale.domain([0, d3.max(dataset, function(d){return +d.episodes;})]);
+
+
+
+          var svg = d3.select('body')
+            .append('svg')
+            .attr({width:width, height:height});
+
+
+          var chart = svg.append("g").
+            attr("transform","translate("+margins.left + "," + margins.top + ")");
+
+
+
+
+          function objToFilteredArray(d, unwanted){
+            // convert object to array of associative pairs
+            // {'A':50, 'B':12} -> \[{'key':'A', 'value':50}, {'key':'B', 'value':12}\]
+            ar = d3.entries(d);
+            
+            // remove the pairs corresponding to the categorical values
+            // we do this by filtering and removing pairs that have a key in the unwanted list
+            return ar.filter(function(v){return unwanted.indexOf(v.key) == -1;}); 
+          }
+
+
+
+          //setting a color scale for each property
+          for(prop in dataset[0]){
+            colorScales[prop] = d3.scale.linear().range(["gray", "red"]).domain(d3.extent(dataset, function(d){return +d[prop]}));
+          }
+
+
+
+
+          var tr = svg.selectAll(".movie")
+            .data(dataset)
+            .enter().append("g").attr("class","movie");
+            // .append("text")
+            // .text(function(d){return d.film});
+
+
+          var movieIndex = -1;
+          var td = tr.selectAll("rect")
+            .data(function(d, i) {return objToFilteredArray(d, ['studio', 'year', 'film', 'genre'])})
+            .enter()
+            .append("rect")
+            .attr({x: function(d, i){return xScale(d.key)+margins.left;},
+                   y: function(d, i){
+                    if (i == 0) {movieIndex++;}
+                    return yScale(movieNames[movieIndex])},
+                   width: xScale.rangeBand(),
+                   height: yScale.rangeBand()})
+            .style("fill", function(d){return colorScales[d.key](+d.value); });
+
+
+
+
+//console.log(dataset[i].film); 
+
+//console.log(i, objToFilteredArray(d, ['studio', 'year', 'film', 'genre']));
+
+
+
+
+
+
+
+//--------------------------------------------------------------------
+
+          //making and appending axes
+        var xAxis = d3.svg.axis()
+          .scale(xScale)
+          .orient("bottom");
+
+
+        chart.append("g")
+          .attr("class","axis")
+          .attr("id", "xAxis")
+          .attr("transform", "translate(0, " + chartHeight+")")
+          .call(xAxis)
+          .append("text")
+          .attr({
+            "x":chartWidth/2,
+            "y":margins.bottom/2,
+            "text-anchor":"middle" 
+          });
+          //.text("Attributes");
+
+          chart.selectAll("#xAxis text")
+            .attr("transform", function(d){
+              return "translate(" + this.getBBox().height*-2 + "," + this.getBBox().height*+3 + ")rotate(-45)";
+            });
+
+
+
+
+          var yAxis = d3.svg.axis()
+            .scale(yScale)
+            .orient("left");
+
+
+          chart.append("g")
+            .attr("class","axis")
+            .call(yAxis)
+            .append("text")
+            .attr({
+              "x":-chartHeight/2,
+              "y":3 * -margins.left/4,
+              "text-anchor":"middle",
+              "transform" : "rotate(-90)"
+            });
+           // .text("Movies");
+
+
+});
+
+    </script>
+  </body>
+</html>

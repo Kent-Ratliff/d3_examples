@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Stacked Bar Chart</title>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/1.9.0/d3-legend.js" charset="utf-8"></script>
+  <style type="text/css">
+    .axis text {
+      font-family: sans-serif;
+      font-size: 11px;
+    }
+
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: gray;
+      shape-rendering: crisp-edges;
+    }
+  /*  section{
+      width: 100%;
+      height: height;
+      margin:auto;
+      paddin:10px;
+    }*/
+
+    div#legend {
+      margin: 10px;
+      font-family: sans-serif;
+      font-size: 14px;
+      /*display: inline-block;*/
+      width: width;
+      height: height;
+      text-align: center;
+      position:absolute;
+      left:450px;
+      /*margin-left: 40%;*/
+    }
+
+    div#chart{
+      width:400px;
+      height:400px;
+      padding:10px;
+      margin:10px;
+      float:left;
+      /*display:inline-block;*/
+      position:absolute;
+      left:auto;
+
+    }
+
+    h2 {
+      font-family: sans-serif;
+      font-size: 16px;
+    }
+
+    h3 {
+      font-family: sans-serif;
+      font-size: 18px;
+    }
+  </style>
+
+</head>
+
+<body>
+  <h3>Stacked Bar Chart</h3>
+<div id="chart">
+</div>
+
+  <div id="legend">
+    <p>
+      <h2>Region</h2>
+    </p>
+  </div>
+
+  <script>
+    //var regionNames = [];
+
+    var width = 400;
+    var height = 400;
+
+    var margins = {
+      top: 5,
+      bottom: 80,
+      left: 60,
+      right: 0
+    };
+
+
+    var chartWidth = width - margins.left - margins.right;
+    var chartHeight = height - margins.top - margins.bottom;
+
+    var xScale = d3.scale.ordinal().rangeRoundBands([0, chartWidth], 0.1);
+    var yScale = d3.scale.linear().range([chartHeight, 0]);
+
+
+    //coloring the data by region
+    var colorValue = function(d) {
+      return (d.region);
+    };
+    var color = d3.scale.category10();
+
+
+
+    var regions = ['East', 'West', 'North', 'South'];
+    var years = d3.range(2005, 2015);
+    var rand = d3.random.normal(35, 20);
+
+    var data = regions.map(function(region) {
+      var profits = years.map(function(year) {
+        return {
+          x: year,
+          y: Math.max(0, rand())
+        };
+      });
+      return {
+        region: region,
+        profits: profits
+      };
+    });
+
+
+    var svg = d3.select('#chart')
+      .append('svg')
+      .attr({
+        width: width,
+        height: height
+      });
+
+
+    var chart = svg.append("g").
+    attr("transform", "translate(" + margins.left + "," + margins.top + ")");
+
+
+    //where yMaxArray used to be
+
+
+
+    //making and placing a legend
+    var ordinal = d3.scale.ordinal()
+      .domain(["East", "West", "North", "South"])
+      .range(["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]);
+
+    var svg = d3.select("#legend").append("svg");
+
+    svg.append("g")
+      .attr("class", "legendOrdinal")
+      .attr("transform", "translate(70,20)");
+
+    var legendOrdinal = d3.legend.color()
+      .shape("path", d3.svg.symbol().type("square").size(150)())
+      .shapePadding(10)
+      .scale(ordinal);
+
+    svg.select(".legendOrdinal")
+      .call(legendOrdinal);
+
+    //used to stack the data
+    var profitArray = data.map(function(d) {
+      return d.profits;
+    });
+
+    //getting the max y value needed for the yScale
+    var yMaxArray = [];
+    var stack = d3.layout.stack();
+    var stackedData = stack(profitArray);
+
+    stackedData[3].forEach(function(d) {
+      yMaxArray.push(d.y + d.y0);
+    })
+
+    xScale.domain(years.map(function(d) {
+      return d;
+    }));
+    yScale.domain([0, d3.max(yMaxArray)]);
+
+
+    var vis = function() {
+
+
+
+        /*make 1D array from 2D stacked array (has 4 x 10), these 10 have y value and y0 value
+        making a list of objects that contain the x, y, y0, and region from data*/
+        var allValues = [];
+
+        for (var i = 0; i < stackedData.length; i++) {
+          for (var j = 0; j < stackedData[i].length; j++) {
+            allValues.push({
+              y0: stackedData[i][j].y0,
+              y: stackedData[i][j].y,
+              x: stackedData[i][j].x,
+              region: data[i].region,
+              index: i
+            });
+          }
+        }
+
+
+        console.log(allValues);
+
+
+        chart.selectAll('rect').remove();
+
+
+        chart.selectAll('rect')
+          .data(allValues)
+          .enter()
+          .append('rect')
+          .attr("class", "bar")
+          .attr({
+            x: function(d, i) {
+              return xScale(d.x);
+            },
+            y: function(d, i) {
+              return yScale(+(d.y0 + d.y));
+            }, //y0 + y
+            width: xScale.rangeBand(),
+            height: function(d) {
+              return chartHeight - yScale(+d.y)
+            }
+          }) //y
+          .style("fill", function(d) {
+            return color(colorValue(d));
+          }) //coloring the regions
+          .on("click", function(d) {
+            //console.log(d.region); //showing us the region we've clicked on
+
+            //splicing out the region we've clicked on from data
+            var x = data.splice(d.index, 1);
+
+            data.unshift(x[0]); //making the spliced out region first in data array
+
+            vis();
+
+          });
+
+      } //end of vis function
+
+    var xAxis = d3.svg.axis()
+      .scale(xScale)
+      .orient("bottom");
+
+
+    chart.append("g")
+      .attr("class", "axis")
+      .attr("transform", "translate(0, " + chartHeight + ")")
+      .call(xAxis)
+      .append("text")
+      .attr({
+        "x": chartWidth / 2,
+        "y": margins.bottom / 2,
+        "text-anchor": "middle"
+      })
+      .text("Year");
+
+    var yAxis = d3.svg.axis()
+      .scale(yScale)
+      .orient("left");
+
+
+    chart.append("g")
+      .attr("class", "axis")
+      .call(yAxis)
+      .append("text")
+      .attr({
+        "x": -chartHeight / 2,
+        "y": 3 * -margins.left / 4,
+        "text-anchor": "middle",
+        "transform": "rotate(-90)"
+      })
+      .text("Profits");
+
+
+
+
+    vis();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<!-- Anna Parker and kent ratliff
+hw 8 -->
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Huffman Tree Demo</title>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+  <style>
+    path.link {
+      stroke-width: 2px;
+      stroke: grey;
+      fill: none;
+    }
+  </style>
+
+
+</head>
+
+<body>
+  <h1>Huffman Tree Demo</h1>
+  <div>
+    <span>Text: </span>
+    <input type="text" id="sample" size="100" />
+    <br />
+    <input type="button" id="startButton" value="Start" />
+    <input type="button" id="stepButton" disabled="true" value="Step" />
+  </div>
+
+  <script type="text/javascript">
+    //establish margins and widht and height
+    var margin = {
+        top: 10,
+        right: 10,
+        bottom: 10,
+        left: 10
+      },
+      width = 800,
+      height = 800;
+
+    //set up our tree layout
+    var drawTree = d3.layout.tree()
+      .size([width, height]);
+
+    //set up svg
+    var svg = d3.select("body").append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom);
+
+    var string;
+    var treeArray;
+    var step = 0;
+    var spaceArray = [];
+    var stepDepth = 0;
+
+    //add event listern to start button
+    startButton.addEventListener("click", function() {
+      //empty tree array
+      treeArray = [];
+      //remove all drawing
+      svg.selectAll("*").remove();
+      //reset stepCount
+      stepCount = 0;
+      //grab the text
+      string = document.getElementById('sample').value.toLowerCase();
+      //enable step button
+      document.getElementById("stepButton").disabled = false;
+
+      //count frequency of letters
+      for (var i = 0; i < string.length; i++) {
+        var frequency = 1;
+        for (var j = i + 1; j < string.length; j++) {
+          var letter = string[i];
+          if (letter === string[j]) {
+            frequency++;
+          }
+        }
+
+        //set up our tree array
+        var tree = {
+            value: string[i],
+            freq: frequency
+          }
+          //add element to array
+        inArray(treeArray, tree);
+      }
+      //sort
+      drawTree.sort(function(a, b) {
+          return a.freq - b.freq;
+        })
+        //give initial width
+      for (var i = 0; i < treeArray.length; i++) {
+        spaceArray.push(height / treeArray.length * i)
+        treeArray[i].x = 10
+        treeArray[i].y = 10
+      }
+      stepDepth = treeArray.length;
+
+      //compute width of widest tree
+      var dimensions = widest(treeArray);
+      var width = treeArray.length * dimensions[0];
+      var rows = Math.floor(width / width) + 1;
+      var columns = Math.ceil(treeArray.length / rows);
+
+      //append letters
+      var word = svg.selectAll("g")
+        .data(treeArray)
+        .enter()
+        .append("g")
+        .attr("transform", function(d, i) {
+          return "translate(" + (((i % columns) * (width / columns))) + "," + (margin.top + (Math.floor(i / columns) * (height - height / rows) / ((treeArray.length / columns)))) + ")";
+        });
+
+      word.append("text")
+        .attr("x", function(d) {
+          return d.x;
+        })
+        .attr("y", function(d) {
+          return d.y;
+        })
+        .attr("dy", ".35em")
+        .text(function(d) {
+          return d.value;
+        });
+    });
+
+    //set up event listner for step button
+    stepButton.addEventListener("click", function() {
+      //remove drawings
+      d3.selectAll("g").remove();
+
+      //increment stepCount
+      stepCount++;
+      //update the array to combine the two least frequent into one tree with children
+      if (treeArray.length > 1) {
+        var small1 = treeArray.pop();
+        var small2 = treeArray.pop();
+        var tree = {
+            value: small1.value + small2.value,
+            freq: small1.freq + small2.freq,
+            children: [small2, small1]
+          }
+          //update array
+        inArray(treeArray, tree);
+
+      } else {
+        //disable step button
+        document.getElementById("stepButton").disabled = true;
+      }
+
+      //establish node array
+      var treeNodes = treeArray.map(function(d) {
+        return drawTree.nodes(d)
+      });
+      //compute width of widest tree
+      var dimensions = widest(treeArray);
+      var width = treeArray.length * dimensions[0];
+      var rows = Math.floor(width / width) + 1;
+      var columns = Math.ceil(treeArray.length / rows);
+
+      var TGroups = svg.selectAll(".tree")
+        .data(treeNodes);
+      TGroups.exit().remove();
+      TGroups.enter()
+        .append("g")
+        .attr("class", "tree")
+        .attr("transform", function(d, i) {
+          return "translate(" + (((i % columns) * (width / columns))) + "," + (margin.top + (Math.floor(i / columns) * (height - height / rows) / ((treeArray.length / columns)))) + ")";
+        });
+
+      // Declare the node
+      var nodes = TGroups.selectAll('.node')
+        .data(function(d) {
+          return d;
+        });
+      nodes.exit().remove();
+
+      nodes.enter()
+        .append("text")
+        .attr({
+          x: function(d) {
+            return d.x
+          },
+          y: function(d) {
+            return d.y
+          }
+        })
+        .text(function(d) {
+          return d.value;
+        })
+        .attr("class", "node");
+
+      //declare links
+      var links = TGroups.selectAll(".link")
+        .data(
+          function(d) {
+            return (drawTree.links(d));
+          });
+
+      links.exit().remove();
+
+      links.enter()
+        .append("path")
+        .attr("class", "link")
+        .attr("d", d3.svg.diagonal());
+
+      console.log("treedrawn: ", treeArray);
+
+    });
+
+    //function to determine the widest tree in an array of trees
+    function widest(trees) {
+      //initialize variables
+      var xMin = 0;
+      var xMax = 0;
+      var yMin = 0;
+      var yMax = 0;
+      var maxWidth = 0;
+      var maxHeight = 0;
+      //go through each element
+      trees.forEach(function(d) {
+        var child = d;
+        //find range of x and y values
+        xMin = xMin < child.x ? xMin : child.x;
+        yMin = yMin < child.y ? yMin : child.y;
+        xMax = xMax > child.x ? xMax : child.x;
+        yMax = yMax > child.y ? yMax : child.y;
+        //if children
+        if (child.children !== undefined) {
+          var lChild = child.children;
+          var rChild = child.children;
+          //explore the left child
+          while (lChild !== undefined) {
+            lChild = lChild[0];
+            if (lChild !== undefined) {
+              xMin = xMin < lChild.x ? xMin : lChild.x;
+              yMax = yMax > lChild.y ? yMax : lChild.y;
+              yMin = yMin < lChild.y ? yMin : lChild.y;
+              yMax = yMax > lChild.y ? yMax : lChild.y;
+              lChild = lChild.children;
+            }
+
+          }
+          //explore right child
+          while (rChild !== undefined) {
+            rChild = rChild[-1];
+            if (rChild !== undefined) {
+              xMin = xMin < rChild.x ? xMin : rChild.x;
+              xMax = xMax > rChild.x ? xMax : rChild.x;
+              yMin = yMin < rChild.y ? yMin : rChild.y;
+              yMax = yMax > rChild.y ? yMax : rChild.y;
+              rChild = rChild.children;
+            }
+
+          }
+        }
+        maxWidth = maxWidth > (xMax - xMin) ? maxWidth : (xMax - xMin);
+        maxHeight = maxHeight > (yMin - yMax) ? maxHeight : (yMin - yMax);
+      });
+      return [maxWidth, maxHeight];
+    }
+
+    //funciton to add element to array
+    function inArray(array, element) {
+      var p = 0;
+      for (var k = 0; k < array.length; k++) {
+        if (element.value === treeArray[k].value) {
+
+          p++;
+        }
+      }
+      if (p === 0) {
+        array.push(element);
+      }
+    }
+  </script>
+</body>
+
+</html>

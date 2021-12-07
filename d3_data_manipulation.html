@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <title></title>
+  </head>
+  <body>
+    <script>
+    var regions = ['East', 'West', 'North', 'South'];
+        var years = d3.range(2005, 2015);
+        var rand = d3.random.normal(35, 20);
+        var data = regions.map(function(region){
+          var profits = years.map(function(year){
+            return {x: year, y:Math.max(0,rand())};
+          });
+          return {region:region, profits:profits};
+        });
+</script>
+  </body>
+</html>

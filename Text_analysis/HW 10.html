@@ -1,0 +1,257 @@
+<!DOCTYPE html
+Kent Ratliff
+Adam Markun
+HW10 10
+5/13/16>
+<!-- saved from url=(0081)http://www.cs.middlebury.edu/~candrews/classes/infovis/assignments/hw10_stub.html -->
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+  <script src="./HW 10_files/d3.v3.min.js" charset="utf-8"></script>
+  <title>HW 10</title>
+
+</head>
+
+<body>
+  <h1>Literature Fingerprints</h1>
+  <p>Use this page to upload a collection of different text documents and visualize their "fingerprints". To generate the fingerprint, the text files are broken up into shorter lists of words. For each subset, we draw a small box and set the color of the
+    box based on the average word length for all of the words in that subset.
+  </p>
+  <input type="file" id="files" name="files[]" multiple="">
+  <ul id="list"></ul>
+
+  <div id="texts"></div>
+
+  <script>
+    // constant to determine how the file gets segmented
+    var WORDS_PER_BLOCK = 200;
+
+    // constant to determine the size of the physical boxes
+    var BLOCKSIZE = 15;
+
+    // width of the svg
+    var width = 800;
+
+    // to make the math easier, we compute width the blocks will actually use
+    // since we don't want any partial blocks
+    var realWidth = Math.floor(width / BLOCKSIZE) * BLOCKSIZE;
+
+    // stop words are words that we don't want in our analysis because they are
+    // too common
+    var stopwords = ["and", "of", "the", "is", "a", "which", "where", "that", "and", "or", "if", "what", "in", "on", "an", "it", "to", "too", "was", "has"];
+
+    // create a color scale using a linear scale
+    // I used a three value range for a diverging color scale, but you are welcome to
+    // just use two if you prefer the aesthetics
+
+    var colorScale = d3.scale.linear().range(["purple", "grey", "green"]);
+    /*
+      The drawTextVis function draws the fingerprints. It takes in a list of objects,
+      each representing one of the texts that has been uploaded.
+    */
+    var drawTextVis = function(texts) {
+
+      // Create a master list of all of the average word lengths to make it
+      // easy to find the extent of all of the values and the median (which I used
+      // for the middle value in the color range domain)
+
+      var allAvg = [];
+      for (var i = 0; i < texts.length; i++) {
+        texts[i].avgLen.forEach(function(d) {
+          allAvg.push(d);
+        });
+      }
+      var mean = d3.mean(allAvg);
+      var extent = d3.extent(allAvg);
+
+      // set the domain of the color range
+      colorScale.domain([extent[0], mean, extent[1]]);
+      // create a div for each text document
+      // use the enter and exit sets to clear out old values
+      var textDiv = d3.select('#texts');
+
+      var books = textDiv.selectAll('div')
+        .data(texts);
+
+      books.exit().remove();
+
+      console.log(texts);
+      books.enter()
+        .append("div")
+        .attr("class", function(d) {
+          return d.name;
+        });
+
+
+
+      // To build the display for a single text document, I created a div
+      // the div is associated with the data for the associated text document using data()
+      // Inside, there is a p, which displays the document's name
+      // there is also an SVG region for the drawing
+
+      books.append("p")
+        .text(function(d) {
+          return d.name;
+        });
+
+
+
+      // The SVG region is sized as width, and the height is calculated based on the
+      // number of rows required
+
+      var svg = books.append("svg")
+        .attr({
+          width: width,
+          height: function(d) {
+            return (Math.ceil(d.avgLen.length / (width / BLOCKSIZE))) * BLOCKSIZE;
+          }
+        });
+
+      // Inside of the SVG, create rects for the boxes, using the list of
+      // average lengths as the data
+      // since these are inside of the div holding the text document data,
+      // you can use the function(d){} in the data() function to fetch the right field
+
+      var rects = svg.selectAll("rect")
+        .data(function(d) {
+          return d.avgLen;
+        });
+
+      rects.exit().remove();
+
+      rects.enter()
+        .append("rect")
+        .attr({
+          width: BLOCKSIZE,
+          height: BLOCKSIZE,
+          x: function(d, i) {
+            return Math.floor(BLOCKSIZE * (i % (realWidth / BLOCKSIZE)))
+          },
+          y: function(d, i) {
+            return BLOCKSIZE * Math.floor(i / (realWidth / BLOCKSIZE))
+          }
+        })
+        .style("fill", function(d) {
+          console.log(d);
+          return colorScale(d);
+        });
+
+
+
+      // use the index number of the elements and mod (%) to set the x coordinate
+      // use the index number of the elements and div (/) to set the y coordinate
+      // width and height are determined by BLOCKSIZE
+      // fill color is determined by the color scale
+
+
+    };
+
+    /*
+      The bundleTextData function takes in a name and the contents of the associated file.
+      The function should process the text and return an object containing (at minimum),
+      a list of average word lengths for the segments of the file, and the name of the
+      file.
+    */
+    var bundleTextData = function(name, text) {
+      // split the text using the regex /\s+/ to make a split on any whitespace
+      // use map to visit each word, strip off punctuation
+      // then filter the list to remove words that are now empty or are in the list of stop words
+      // (if you want to try other metrics, you might also convert it to lowercase, but it isn't
+      // required for word length)
+
+      var start = text.indexOf("\n", text.indexOf("***START OF THE PROJECT GUTENBERG EBOOK"));
+      var end = text.indexOf("End of Project Gutenberg's");
+      text = text.slice(start, end);
+
+      //get array of words
+      var words = text.split(/\s+/);
+      var clean = [];
+
+      String.prototype.replaceStopWords = function(findArray, replace) {
+        var string = this.valueOf();
+        if (findArray.indexOf(string) > 0) {
+          return replace;
+        } else {
+          return string;
+        }
+      }
+
+
+      //clean the words
+      words.map(function(word) {
+        word = word.replace(/(^(\W|\d)+|\W+$)/g, "");
+        word = word.toLowerCase();
+        word = word.replaceStopWords(stopwords, "");
+        if (word !== "") {
+          clean.push(word);
+        }
+      });
+
+
+      // create a list of average word lengths for each subset of the list of words of
+      // size WORDS_PER_BLOCK
+      // there are many ways to do this, I used slice to create sub lists of the correct size
+      // and then found the average word length using d3.mean()
+
+
+      // create an object and return it
+      var avgLen = [];
+      while (clean.length > 0) {
+        var block = clean.splice(0, WORDS_PER_BLOCK)
+        avgLen.push(d3.mean(block, function(d) {
+          return d.length
+        }));
+      }
+
+      var obj = {
+        name: name,
+        avgLen: avgLen
+      };
+      return obj;
+
+    };
+
+
+    /*
+      This function does the voodoo of "uploading" the files into the browser.
+      You don't need to know exactly what is going on in here. The important
+      parts are that when the user selects multiple files, this will read those
+      files in, passing each one to bundleTextData() for you to process. When
+      they have all been processed, it will then call drawTextVis() with a list
+      of all of the objects you produced in the bundleTextData() function.
+    */
+    var handleFileSelect = function(evt) {
+      var files = evt.target.files; // FileList object
+
+      var loadList = [];
+
+      for (var i = 0, f; f = files[i]; i++) {
+        var p = new Promise(function(resolve, reject) {
+          var reader = new FileReader();
+
+          reader.onload = function(fileData) {
+            return function(event) {
+              resolve(bundleTextData(fileData.name, event.target.result));
+            };
+          }(f);
+          reader.readAsText(f);
+
+        });
+        loadList.push(p);
+      }
+
+      Promise.all(loadList).then(function(data) {
+        drawTextVis(data);
+      });
+
+    };
+
+    document.getElementById('files').addEventListener('change', handleFileSelect, false);
+  </script>
+
+
+</body>
+
+</html>
